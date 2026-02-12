@@ -1,0 +1,5 @@
+packet SimpleMessage {
+    string message
+    string sender
+    int seq
+}
