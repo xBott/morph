@@ -8,20 +8,46 @@ pub struct Token {
 #[derive(Debug, Clone)]
 pub enum TokenKind {
     PacketKeyword,
-    Identifier(String),
+    PacketIdentifier,
+    Operator(OperatorKind),
     BraceOpen,
     BraceClose,
-    Type(String),
+    Fields,
+    FieldType(FieldType),
+    Qualifier(String),
+    Number(i32)
+}
+
+#[derive(Debug, Clone)]
+pub enum OperatorKind {
+    Equals,
+}
+
+#[derive(Debug, Clone)]
+pub enum FieldType {
+    Bool,
+    I32,
+    Str,
 }
 
 pub fn as_token_kind(content: &str) -> Option<TokenKind> {
-
     match content {
         "packet" => Some(TokenKind::PacketKeyword),
+        "id" => Some(TokenKind::PacketIdentifier),
+        "=" => Some(TokenKind::Operator(OperatorKind::Equals)),
         "{" => Some(TokenKind::BraceOpen),
         "}" => Some(TokenKind::BraceClose),
-        "string" | "int" => Some(TokenKind::Type(content.to_string())),
-        _ => Some(TokenKind::Identifier(content.to_string())),
-    }
+        "fields" => Some(TokenKind::Fields),
+        "bool" => Some(TokenKind::FieldType(FieldType::Bool)),
+        "i32" | "int" => Some(TokenKind::FieldType(FieldType::I32)),
+        "string" => Some(TokenKind::FieldType(FieldType::Str)),
+        _ => {
+            if let Ok(num) = content.parse::<i32>() {
+                Some(TokenKind::Number(num))
 
+            } else {
+                Some(TokenKind::Qualifier(content.to_string()))
+            }
+        }
+    }
 }
