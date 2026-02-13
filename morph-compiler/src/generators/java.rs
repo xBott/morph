@@ -181,7 +181,6 @@ impl JavaGenerator {
 
         content.push_str("\t\tByteBuffer buffer = ByteBuffer.wrap(data);\n");
 
-        // Проверка минимального размера
         content.push_str("\t\tif (data.length < 4) {\n");
         content.push_str("\t\t\tthrow new IllegalArgumentException(\"Data too short: expected at least 4 bytes for packet ID\");\n");
         content.push_str("\t\t}\n\n");
@@ -193,7 +192,6 @@ impl JavaGenerator {
         content.push_str("\t\t\t);\n");
         content.push_str("\t\t}\n\n");
 
-        // Декодирование каждого поля с проверкой
         for field in &packet.fields {
             let decode_code = match field.typ {
                 FieldType::Bool => {
@@ -233,19 +231,16 @@ impl JavaGenerator {
                         field.name, field.name, field.name, field.name, field.name, field.name, field.name
                     )
                 }
-                _ => String::new(),
             };
             content.push_str(&decode_code.as_str());
         }
 
-        // Проверка, что не осталось лишних данных
         content.push_str("\n\t\tif (buffer.hasRemaining()) {\n");
         content.push_str("\t\t\tthrow new IllegalArgumentException(\n");
         content.push_str("\t\t\t\t\"Extra bytes remaining after decoding: \" + buffer.remaining() + \" bytes\"\n");
         content.push_str("\t\t\t);\n");
         content.push_str("\t\t}\n\n");
 
-        // Создание и возврат объекта
         content.push_str("\t\treturn new ");
         content.push_str(&packet.name.as_str());
         content.push_str("(");
