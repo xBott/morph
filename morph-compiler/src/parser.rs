@@ -22,7 +22,7 @@ pub enum ParseResult {
     Err(Vec<ParseError>),
 }
 
-pub trait Parser {
+pub trait AstParser {
     fn parse(&self, tokens: &Vec<Token>) -> std::io::Result<Vec<Packet>>;
 
 }
@@ -190,7 +190,7 @@ impl SimpleParser {
     }
 }
 
-impl Parser for SimpleParser {
+impl AstParser for SimpleParser {
     fn parse(&self, tokens: &Vec<Token>) -> std::io::Result<Vec<Packet>> {
         let mut packets = Vec::new();
         let mut iter = tokens.iter().peekable();
