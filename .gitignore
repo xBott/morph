@@ -1,2 +1,10 @@
-.idea
-/morph-compiler/target/
+# IDE
+.idea/
+
+# Cargo
+/target/
+
+# Gradle
+**/.gradle/
+**/build/
+
