@@ -4,38 +4,25 @@ mod token;
 mod parser;
 mod generator;
 mod generators;
-use crate::generator::{create_generator, Generator, Lang};
+mod cli;
+
+use crate::cli::Cli;
+use crate::generator::create_generator;
 use crate::lexer::{Lexer, SimpleLexer};
-use crate::parser::{Parser, SimpleParser};
-use std::env;
-use std::fs::File;
-use std::path::PathBuf;
+use crate::parser::{AstParser, SimpleParser};
 use crate::utils::FileWrapper;
+use std::fs::File;
+use clap::Parser;
 
 fn main() -> std::io::Result<()> {
 
-    let mut args = env::args().skip(1);
+    let cli = Cli::parse();
 
-    let lang: Lang = args
-        .next()
-        .expect("Usage: morph <lang> <file> [output_dir]")
-        .parse()?;
-
-    let input_dir: PathBuf = args
-        .next()
-        .expect("Usage: morph <lang> [input_dir] [output_dir]")
-        .into();
-
-    let output_dir: PathBuf = args
-        .next()
-        .expect("Usage: morph <lang> [input_dir] [output_dir]")
-        .into();
-
-    println!("Compiling {} to {:?}", input_dir.to_string_lossy(), lang);
+    println!("Compiling {} to {:?}", cli.input_dir.to_string_lossy(), cli.lang);
 
     let mut wrapper = FileWrapper {
-        path: input_dir.clone(),
-        file: File::open(&input_dir)?,
+        path: cli.input_dir.clone(),
+        file: File::open(&cli.input_dir)?,
     };
 
     let lexer = SimpleLexer;
@@ -50,8 +37,8 @@ fn main() -> std::io::Result<()> {
     }
 
     println!("\nGenerating code...");
-    let generator = create_generator(&lang, "me.bottdev.morph".to_string());
-    generator.generate(&output_dir, &packets);
+    let generator = create_generator(&cli.lang, cli.package);
+    generator.generate(&cli.output_dir, &packets);
 
     Ok(())
 }
