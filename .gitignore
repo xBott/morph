@@ -7,6 +7,3 @@
 # Gradle
 **/.gradle/
 **/build/
-
-# Игнор всех build вне зависимости от папки
-**/build/
