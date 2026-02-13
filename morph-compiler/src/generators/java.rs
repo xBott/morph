@@ -53,6 +53,10 @@ impl JavaGenerator {
             self.generate_setters(&mut content, packet);
             self.generate_encode(&mut content, packet);
             self.generate_decode(&mut content, packet);
+            self.generate_to_string(&mut content, packet);
+            self.generate_equals(&mut content, packet);
+            self.generate_hash_code(&mut content, packet);
+            self.generate_registration(&mut content, packet);
             content.push_str("}");
 
             fs::write(&path, content).unwrap();
@@ -63,8 +67,9 @@ impl JavaGenerator {
 
     fn generate_imports(&self, content: &mut String) {
         content.push_str("import java.nio.ByteBuffer;\n");
-        content.push_str("import java.nio.charset.StandardCharsets;\n\n");
-        content.push_str("import me.bottdev.morph.runtime.MorphPacket;\n\n");
+        content.push_str("import java.nio.charset.StandardCharsets;\n");
+        content.push_str("import me.bottdev.morph.runtime.MorphPacket;\n");
+        content.push_str("import me.bottdev.morph.runtime.PacketRegistries;\n\n");
     }
 
     fn generate_packet_id(&self, content: &mut String, packet: &Packet) {
@@ -141,7 +146,7 @@ impl JavaGenerator {
     }
 
     fn generate_encode(&self, content: &mut String, packet: &Packet) {
-        content.push_str("\t@Override");
+        content.push_str("\n\t@Override");
         content.push_str("\n\tpublic byte[] encode() {\n");
 
         content.push_str("\t\tByteBuffer buffer = ByteBuffer.allocate(1024);\n");
@@ -255,6 +260,97 @@ impl JavaGenerator {
 
         content.push_str(");\n");
         content.push_str("\t}\n");
+    }
+
+    fn generate_to_string(&self, content: &mut String, packet: &Packet) {
+        content.push_str("\t@Override\n");
+        content.push_str("\tpublic String toString() {\n");
+        content.push_str(format!("\t\treturn \"{}{{\" +\n", packet.name).as_str());
+
+        let mut iter = packet.fields.iter().peekable();
+        while let Some(field) = iter.next() {
+            if iter.peek().is_some() {
+                content.push_str(&format!("\t\t\t\"{}=\" + {} + \", \" +\n", field.name, field.name));
+            } else {
+                content.push_str(&format!("\t\t\t\"{}=\" + {} +\n", field.name, field.name));
+            }
+        }
+
+        content.push_str("\t\t\t'}';\n");
+        content.push_str("\t}\n\n");
+    }
+
+    fn generate_equals(&self, content: &mut String, packet: &Packet) {
+        content.push_str("\t@Override\n");
+        content.push_str("\tpublic boolean equals(Object o) {\n");
+        content.push_str("\t\tif (this == o) return true;\n");
+        content.push_str("\t\tif (o == null || getClass() != o.getClass()) return false;\n");
+        content.push_str(format!("\t\t{} that = ({}) o;\n", packet.name, packet.name).as_str());
+
+        if packet.fields.is_empty() {
+            content.push_str("\t\treturn true;\n");
+        } else {
+            content.push_str("\t\treturn ");
+
+            let mut iter = packet.fields.iter().peekable();
+            while let Some(field) = iter.next() {
+                let comparison = match field.typ {
+                    FieldType::Bool => {
+                        format!("Boolean.compare(that.{}, {}) == 0", field.name, field.name)
+                    }
+                    FieldType::I32 => {
+                        format!("Integer.compare(that.{}, {}) == 0", field.name, field.name)
+                    }
+                    FieldType::Str => {
+                        format!("java.util.Objects.equals({}, that.{})", field.name, field.name)
+                    }
+                    _ => {
+                        format!("{} == that.{}", field.name, field.name)
+                    }
+                };
+
+                content.push_str(&comparison);
+
+                if iter.peek().is_some() {
+                    content.push_str(" &&\n\t\t\t\t");
+                } else {
+                    content.push_str(";\n");
+                }
+            }
+        }
+
+        content.push_str("\t}\n\n");
+    }
+
+    fn generate_hash_code(&self, content: &mut String, packet: &Packet) {
+        content.push_str("\t@Override\n");
+        content.push_str("\tpublic int hashCode() {\n");
+
+        if packet.fields.is_empty() {
+            content.push_str("\t\treturn 0;\n");
+        } else {
+            content.push_str("\t\treturn java.util.Objects.hash(");
+
+            let mut iter = packet.fields.iter().peekable();
+            while let Some(field) = iter.next() {
+                content.push_str(&field.name);
+                if iter.peek().is_some() {
+                    content.push_str(", ");
+                }
+            }
+
+            content.push_str(");\n");
+        }
+
+        content.push_str("\t}\n\n");
+    }
+
+    fn generate_registration(&self, content: &mut String, packet: &Packet) {
+
+        content.push_str("\n\tstatic {\n");
+        content.push_str(format!("\t\tPacketRegistries.DEFAULT.register({}, {}::decode);\n", packet.id, packet.name).as_str());
+        content.push_str("\t}\n\n");
+
     }
 
 }
