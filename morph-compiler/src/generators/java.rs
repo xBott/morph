@@ -34,30 +34,51 @@ impl JavaGenerator {
     fn generate_packet(&self, output_dir: &Path, packet: &Packet) {
 
         let path = output_dir.join(format!("{}.java", packet.name));
+
         if let Ok(created) = create_file_if_not_exists(&path) {
+
             if created {
                 println!("\nFile {} is created.", path.to_string_lossy());
             }
 
             let mut content = String::new();
-            content.push_str(format!("package {}\n\n", self.package_name).as_str());
-            content.push_str(format!("public final class {} {{\n\n", packet.name).as_str());
+
+            content.push_str(format!("package {};\n\n", self.package_name).as_str());
+            self.generate_imports(&mut content);
+            content.push_str(format!("public final class {} implements MorphPacket {{\n\n", packet.name).as_str());
+            self.generate_packet_id(&mut content, packet);
             self.generate_fields(&mut content, packet);
             self.generate_constructor(&mut content, packet);
             self.generate_getters(&mut content, packet);
             self.generate_setters(&mut content, packet);
+            self.generate_encode(&mut content, packet);
+            self.generate_decode(&mut content, packet);
             content.push_str("}");
 
             fs::write(&path, content).unwrap();
+
         }
 
+    }
+
+    fn generate_imports(&self, content: &mut String) {
+        content.push_str("import java.nio.ByteBuffer;\n");
+        content.push_str("import java.nio.charset.StandardCharsets;\n\n");
+        content.push_str("import me.bottdev.morph.runtime.MorphPacket;\n\n");
+    }
+
+    fn generate_packet_id(&self, content: &mut String, packet: &Packet) {
+        content.push_str(format!("\tprivate static final int PACKET_ID = {};\n\n", packet.id).as_str());
+        content.push_str("\tpublic int getPacketId() {\n");
+        content.push_str("\t\treturn PACKET_ID;\n");
+        content.push_str("\t}\n\n");
     }
 
     fn generate_fields(&self, content: &mut String, packet: &Packet) {
         for field in &packet.fields {
 
             let java_type = self.convert_field_type(&field.typ);
-            content.push_str(format!("\tprivate {} {}\n", java_type, field.name).as_str());
+            content.push_str(format!("\tprivate {} {};\n", java_type, field.name).as_str());
 
         }
         content.push_str("\n");
@@ -82,7 +103,7 @@ impl JavaGenerator {
         content.push_str("\t) {\n");
 
         for field in &packet.fields {
-            content.push_str(&format!("\t\tthis.{} = {}\n", field.name, field.name));
+            content.push_str(&format!("\t\tthis.{} = {};\n", field.name, field.name));
         }
 
         content.push_str("\t}\n");
@@ -117,6 +138,128 @@ impl JavaGenerator {
             content.push_str(format!("\t\tthis.{} = value;\n", field.name).as_str());
             content.push_str("\t}\n");
         }
+    }
+
+    fn generate_encode(&self, content: &mut String, packet: &Packet) {
+        content.push_str("\t@Override");
+        content.push_str("\n\tpublic byte[] encode() {\n");
+
+        content.push_str("\t\tByteBuffer buffer = ByteBuffer.allocate(1024);\n");
+        content.push_str("\t\tbuffer.putInt(PACKET_ID);\n\n");
+
+        for field in &packet.fields {
+            content.push_str(
+                match field.typ {
+                    FieldType::Bool => {
+                        format!("\t\tbuffer.put((byte) (this.{} ? 1 : 0));\n", field.name)
+                    }
+                    FieldType::I32 => {
+                        format!("\t\tbuffer.putInt(this.{});\n\n", field.name)
+                    }
+                    FieldType::Str => {
+                        format!(
+                            "\t\tbyte[] {}Bytes = this.{}.getBytes(StandardCharsets.UTF_8);\n\
+                             \t\tbuffer.putInt({}Bytes.length);\n\
+                             \t\tbuffer.put({}Bytes);\n\n",
+                            field.name, field.name, field.name, field.name
+                        )
+                    }
+                }.as_str()
+            );
+        }
+
+        content.push_str("\t\tbyte[] result = new byte[buffer.position()];\n");
+        content.push_str("\t\tbuffer.flip();\n");
+        content.push_str("\t\tbuffer.get(result);\n");
+        content.push_str("\t\treturn result;\n");
+
+        content.push_str("\t}\n\n");
+    }
+
+    fn generate_decode(&self, content: &mut String, packet: &Packet) {
+        content.push_str(format!("\n\tpublic static {} decode(byte[] data) {{\n", packet.name).as_str());
+
+        content.push_str("\t\tByteBuffer buffer = ByteBuffer.wrap(data);\n");
+
+        // Проверка минимального размера
+        content.push_str("\t\tif (data.length < 4) {\n");
+        content.push_str("\t\t\tthrow new IllegalArgumentException(\"Data too short: expected at least 4 bytes for packet ID\");\n");
+        content.push_str("\t\t}\n\n");
+
+        content.push_str("\t\tint packetId = buffer.getInt();\n\n");
+        content.push_str("\t\tif (packetId != PACKET_ID) {\n");
+        content.push_str("\t\t\tthrow new IllegalArgumentException(\n");
+        content.push_str("\t\t\t\t\"Invalid packet ID: expected \" + PACKET_ID + \", got \" + packetId\n");
+        content.push_str("\t\t\t);\n");
+        content.push_str("\t\t}\n\n");
+
+        // Декодирование каждого поля с проверкой
+        for field in &packet.fields {
+            let decode_code = match field.typ {
+                FieldType::Bool => {
+                    format!(
+                        "\t\tif (buffer.remaining() < 1) {{\n\
+                     \t\t\tthrow new IllegalArgumentException(\"Not enough data for field '{}'\");\n\
+                     \t\t}}\n\
+                     \t\tboolean {} = buffer.get() != 0;\n\n",
+                        field.name, field.name
+                    )
+                }
+                FieldType::I32 => {
+                    format!(
+                        "\t\tif (buffer.remaining() < 4) {{\n\
+                     \t\t\tthrow new IllegalArgumentException(\"Not enough data for field '{}'\");\n\
+                     \t\t}}\n\
+                     \t\tint {} = buffer.getInt();\n\n",
+                        field.name, field.name
+                    )
+                }
+                FieldType::Str => {
+                    format!(
+                        "\t\tif (buffer.remaining() < 4) {{\n\
+                     \t\t\tthrow new IllegalArgumentException(\"Not enough data for field '{}' length\");\n\
+                     \t\t}}\n\
+                     \t\tint {}Length = buffer.getInt();\n\
+                     \t\tif ({}Length < 0) {{\n\
+                     \t\t\tthrow new IllegalArgumentException(\"Invalid length for field '{}': \" + {}Length);\n\
+                     \t\t}}\n\
+                     \t\tif (buffer.remaining() < {}Length) {{\n\
+                     \t\t\tthrow new IllegalArgumentException(\"Not enough data for field '{}' content\");\n\
+                     \t\t}}\n\
+                     \t\tbyte[] {}Bytes = new byte[{}Length];\n\
+                     \t\tbuffer.get({}Bytes);\n\
+                     \t\tString {} = new String({}Bytes, StandardCharsets.UTF_8);\n\n",
+                        field.name, field.name, field.name, field.name, field.name,
+                        field.name, field.name, field.name, field.name, field.name, field.name, field.name
+                    )
+                }
+                _ => String::new(),
+            };
+            content.push_str(&decode_code.as_str());
+        }
+
+        // Проверка, что не осталось лишних данных
+        content.push_str("\n\t\tif (buffer.hasRemaining()) {\n");
+        content.push_str("\t\t\tthrow new IllegalArgumentException(\n");
+        content.push_str("\t\t\t\t\"Extra bytes remaining after decoding: \" + buffer.remaining() + \" bytes\"\n");
+        content.push_str("\t\t\t);\n");
+        content.push_str("\t\t}\n\n");
+
+        // Создание и возврат объекта
+        content.push_str("\t\treturn new ");
+        content.push_str(&packet.name.as_str());
+        content.push_str("(");
+
+        let mut iter = packet.fields.iter().peekable();
+        while let Some(field) = iter.next() {
+            content.push_str(&field.name);
+            if iter.peek().is_some() {
+                content.push_str(", ");
+            }
+        }
+
+        content.push_str(");\n");
+        content.push_str("\t}\n");
     }
 
 }
