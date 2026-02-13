@@ -4,10 +4,10 @@ import me.bottdev.morph.runtime.PacketEncoder;
 import me.bottdev.morph.runtime.PacketRegistries;
 import me.bottdev.morph.runtime.decoders.SimplePacketDecoder;
 import me.bottdev.morph.runtime.encoders.SimplePacketEncoder;
-import packets.AuthRequest;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import packets.AuthRequest;
 import packets.AuthResponse;
 
 public class EncodeDecodeTests {
