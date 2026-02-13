@@ -1,5 +1,15 @@
-packet SimpleMessage {
-    string message
-    string sender
-    int seq
+packet AuthRequest {
+    id = 0
+    fields {
+        string user
+        string password
+    }
+}
+
+packet AuthResponse {
+    id = 1
+    fields {
+        bool success
+        string token
+    }
 }
