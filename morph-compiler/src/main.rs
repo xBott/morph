@@ -42,8 +42,21 @@ fn main() -> std::io::Result<()> {
         }
     }
 
+    println!("\nParsed {} packets:", packets.len());
+    for packet in &packets {
+        if packet.is_auto {
+            println!("  - {} (id: auto)", packet.name);
+        } else {
+            println!("  - {} (id: {})", packet.name, packet.id);
+        }
+        for field in &packet.fields {
+            println!("    {}: {}", field.name, field.typ);
+        }
+    }
+
     let mut semantic_analyzer = CompositeSemanticAnalyzer::new();
     semantic_analyzer.add_analyzer(Box::new(NameSemanticAnalyzer));
+    semantic_analyzer.add_analyzer(Box::new(IdSemanticAnalyzer));
     semantic_analyzer.add_analyzer(Box::new(DependencySemanticAnalyzer));
 
     match semantic_analyzer.analyze(&packets) {
