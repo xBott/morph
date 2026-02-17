@@ -9,14 +9,10 @@ pub struct Token {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
-    PacketKeyword,
-    PacketIdentifier,
+    Keyword(KeywordKind),
     Operator(OperatorKind),
     BraceOpen,
     BraceClose,
-    FieldsKeyword,
-    FieldTypeKeyword(FieldType),
-    ArrayKeyword,
     Qualifier(String),
     Number(i32)
 }
@@ -24,16 +20,35 @@ pub enum TokenKind {
 impl Display for TokenKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TokenKind::PacketKeyword => write!(f, "packet"),
-            TokenKind::PacketIdentifier => write!(f, "id"),
+            TokenKind::Keyword(keyword) => write!(f, "{}", keyword),
             TokenKind::Operator(kind) => write!(f, "{}", kind),
             TokenKind::BraceOpen => write!(f, "{{"),
             TokenKind::BraceClose => write!(f, "}}"),
-            TokenKind::FieldsKeyword => write!(f, "fields"),
-            TokenKind::FieldTypeKeyword(kind_type) => write!(f, "{}", kind_type),
-            TokenKind::ArrayKeyword => write!(f, "array"),
             TokenKind::Qualifier(qualifier) => write!(f, "{}", qualifier),
             TokenKind::Number(number) => write!(f, "{}", number),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum KeywordKind {
+    Packet,
+    Identifier,
+    Auto,
+    Fields,
+    FieldDefinition(FieldType),
+    Array
+}
+
+impl Display for KeywordKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeywordKind::Packet => write!(f, "packet"),
+            KeywordKind::Identifier => write!(f, "id"),
+            KeywordKind::Auto => write!(f, "auto"),
+            KeywordKind::Fields => write!(f, "fields"),
+            KeywordKind::FieldDefinition(field_type) => write!(f, "{}", field_type),
+            KeywordKind::Array => write!(f, "array"),
         }
     }
 }
@@ -110,36 +125,37 @@ pub fn as_token_kind(content: &str) -> Option<TokenKind> {
 
     match content {
         //keywords
-        "packet" => Some(TokenKind::PacketKeyword),
-        "id" => Some(TokenKind::PacketIdentifier),
+        "packet" => Some(TokenKind::Keyword(KeywordKind::Packet)),
+        "id" => Some(TokenKind::Keyword(KeywordKind::Identifier)),
+        "auto" => Some(TokenKind::Keyword(KeywordKind::Auto)),
         "=" => Some(TokenKind::Operator(OperatorKind::Equals)),
         "{" => Some(TokenKind::BraceOpen),
         "}" => Some(TokenKind::BraceClose),
-        "fields" => Some(TokenKind::FieldsKeyword),
-        "array" => Some(TokenKind::ArrayKeyword),
+        "fields" => Some(TokenKind::Keyword(KeywordKind::Fields)),
+        "array" => Some(TokenKind::Keyword(KeywordKind::Array)),
 
         //boolean type
-        "bool" | "boolean" => Some(TokenKind::FieldTypeKeyword(Bool)),
+        "bool" | "boolean" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(Bool))),
 
         //integer types
-        "i8" | "byte" => Some(TokenKind::FieldTypeKeyword(I8)),
-        "i16" | "short" => Some(TokenKind::FieldTypeKeyword(I16)),
-        "i32" | "int" => Some(TokenKind::FieldTypeKeyword(I32)),
-        "i64" | "long" => Some(TokenKind::FieldTypeKeyword(I64)),
+        "i8" | "byte" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(I8))),
+        "i16" | "short" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(I16))),
+        "i32" | "int" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(I32))),
+        "i64" | "long" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(I64))),
 
         //unsigned integer types
-        "u8" | "ubyte" => Some(TokenKind::FieldTypeKeyword(U8)),
-        "u16" | "ushort" => Some(TokenKind::FieldTypeKeyword(U16)),
-        "u32" | "uint" => Some(TokenKind::FieldTypeKeyword(U32)),
-        "u64" | "ulong" => Some(TokenKind::FieldTypeKeyword(U64)),
+        "u8" | "ubyte" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(U8))),
+        "u16" | "ushort" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(U16))),
+        "u32" | "uint" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(U32))),
+        "u64" | "ulong" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(U64))),
 
         //float types
-        "f32" | "float" => Some(TokenKind::FieldTypeKeyword(F32)),
-        "f64" | "double" => Some(TokenKind::FieldTypeKeyword(F64)),
+        "f32" | "float" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(F32))),
+        "f64" | "double" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(F64))),
 
         //chars and strings
-        "char" => Some(TokenKind::FieldTypeKeyword(Char)),
-        "string" | "str" => Some(TokenKind::FieldTypeKeyword(Str)),
+        "char" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(Char))),
+        "string" | "str" => Some(TokenKind::Keyword(KeywordKind::FieldDefinition(Str))),
 
         //numbers and qualifiers
         _ => {
