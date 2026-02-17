@@ -37,6 +37,7 @@ impl MorphError for ParserError {
 #[derive(Debug, Clone)]
 pub struct Packet {
     pub id: i32,
+    pub is_auto: bool,
     pub name: String,
     pub fields: Vec<Field>
 }
