@@ -1,15 +1,56 @@
-packet AuthRequest {
+packet Position {
     id = 0
     fields {
-        string user
-        string password
+        f32 x
+        f32 y
+        f32 z
+        f32 yaw
+        f32 pitch
+        string world
     }
 }
 
-packet AuthResponse {
+packet Position {
+    id = 0
+    fields {
+        f32 x
+        f32 y
+        f32 z
+        f32 yaw
+        f32 pitch
+        string world
+    }
+}
+
+packet PlayerData {
     id = 1
     fields {
-        bool success
-        string token
+        string name
+        string lang
+        u64 last_online
+        Position position
+    }
+}
+
+packet ParticleOptions {
+    id = 2
+    fields {
+        string type
+        f32 speed
+    }
+}
+
+packet Particle {
+    id = 3
+    fields {
+        ParticleOptions options
+        i32 count
+    }
+}
+
+packet Particles {
+    id = 4
+    fields {
+        array Particle particles
     }
 }
