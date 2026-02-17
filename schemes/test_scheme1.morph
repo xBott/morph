@@ -1,17 +1,5 @@
 packet Position {
-    id = 0
-    fields {
-        f32 x
-        f32 y
-        f32 z
-        f32 yaw
-        f32 pitch
-        string world
-    }
-}
-
-packet Position {
-    id = 0
+    id = auto
     fields {
         f32 x
         f32 y
@@ -23,7 +11,7 @@ packet Position {
 }
 
 packet PlayerData {
-    id = 1
+    id = auto
     fields {
         string name
         string lang
@@ -33,7 +21,7 @@ packet PlayerData {
 }
 
 packet ParticleOptions {
-    id = 2
+    id = auto
     fields {
         string type
         f32 speed
@@ -41,7 +29,7 @@ packet ParticleOptions {
 }
 
 packet Particle {
-    id = 3
+    id = auto
     fields {
         ParticleOptions options
         i32 count
@@ -49,7 +37,7 @@ packet Particle {
 }
 
 packet Particles {
-    id = 4
+    id = auto
     fields {
         array Particle particles
     }
