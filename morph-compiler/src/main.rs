@@ -1,18 +1,13 @@
-mod utils;
-mod lexer;
-mod token;
-mod parser;
-mod generator;
-mod generators;
 mod cli;
+mod core;
+mod utils;
 
 use crate::cli::Cli;
-use crate::generator::create_generator;
-use crate::lexer::{Lexer, SimpleLexer};
-use crate::parser::{AstParser, SimpleParser};
-use crate::utils::FileWrapper;
+use crate::core::*;
 use std::fs::File;
 use clap::Parser;
+use crate::utils::{print_morph_errors, FileWrapper};
+use crate::utils::MorphResult::{Errors, Success};
 
 fn main() -> std::io::Result<()> {
 
@@ -26,19 +21,42 @@ fn main() -> std::io::Result<()> {
     };
 
     let lexer = SimpleLexer;
-    let tokens = lexer.tokenize(&mut wrapper)?;
+    let tokens: Vec<Token>;
+
+    match lexer.tokenize(&mut wrapper) {
+        Success(values) => tokens = values,
+        Errors(errors) => {
+            print_morph_errors(&errors);
+            panic!("Some errors occurred while tokenizing stage");
+        }
+    }
 
     let parser = SimpleParser;
-    let packets = parser.parse(&tokens)?;
+    let packets: Vec<Packet>;
 
-    println!("\nParsed {} packets:", packets.len());
-    for packet in &packets {
-        println!("  - {} (id: {})", packet.name, packet.id);
+    match parser.parse(&tokens) {
+        Success(values) => packets = values,
+        Errors(errors) => {
+            print_morph_errors(&errors);
+            panic!("Some errors occurred while parsing stage");
+        }
+    }
+
+    let mut semantic_analyzer = CompositeSemanticAnalyzer::new();
+    semantic_analyzer.add_analyzer(Box::new(NameSemanticAnalyzer));
+    semantic_analyzer.add_analyzer(Box::new(DependencySemanticAnalyzer));
+
+    match semantic_analyzer.analyze(&packets) {
+        Errors(errors) => {
+            print_morph_errors(&errors);
+            panic!("Some errors occurred while analyzing stage");
+        }
+        _ => {}
     }
 
     println!("\nGenerating code...");
-    let generator = create_generator(&cli.lang, cli.package);
-    generator.generate(&cli.output_dir, &packets);
+    // let generator = create_generator(&cli.lang, cli.package);
+    // generator.generate(&cli.output_dir, &packets);
 
     Ok(())
 }
