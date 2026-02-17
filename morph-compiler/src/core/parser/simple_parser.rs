@@ -1,6 +1,8 @@
-use crate::core::TokenKind::{ArrayKeyword, BraceClose, BraceOpen, FieldTypeKeyword, FieldsKeyword, PacketIdentifier, Qualifier};
 use crate::core::{AstParser, Field, FieldType, OperatorKind, Packet, ParserError, Token, TokenKind};
 use crate::core::FieldType::{Array, Nested};
+use crate::core::token::KeywordKind;
+use crate::core::token::KeywordKind::{Fields, Identifier};
+use crate::core::TokenKind::{Keyword, Qualifier, BraceClose};
 use crate::utils::MorphResult::{Errors, Success};
 use crate::utils::{MorphError, MorphResult};
 
@@ -15,6 +17,7 @@ impl SimpleParser {
         iter.next();
 
         let id: i32;
+        let is_auto: bool;
         let name: String;
         let mut fields: Vec<Field> = Vec::new();
 
@@ -40,16 +43,33 @@ impl SimpleParser {
             Errors(errors) => all_errors.extend(errors),
             _ => {}
         }
+        
+        if self.has_keyword(iter, KeywordKind::Auto) {
+            id = -1;
+            is_auto = true;
+            match self.parse_auto_keyword(iter) {
+                Errors(errors) => all_errors.extend(errors),
+                _ => {}
+            }
 
-        match self.parse_i32_number(iter) {
-            Success(num) => id = num,
-            Errors(errors) => {
-                id = -1;
-                all_errors.extend(errors)
-            },
+        } else {
+            is_auto = false;
+            match self.parse_i32_number(iter) {
+                Success(num) => {
+                    id = num;
+                },
+                Errors(errors) => {
+                    id = -1;
+                    all_errors.extend(errors)
+                },
+            }
+
         }
 
-        if self.has_token(iter, FieldsKeyword) {
+        if self.has_keyword(iter, Fields) {
+
+            iter.next();
+
             match self.parse_brace_open(iter) {
                 Errors(errors) => all_errors.extend(errors),
                 _ => {}
@@ -74,14 +94,18 @@ impl SimpleParser {
         }
 
         if all_errors.is_empty() {
-            Success(Packet { id, name, fields })
+            Success(Packet { id, is_auto, name, fields })
         } else {
             Errors(all_errors)
         }
 
     }
 
-    fn has_token(&self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>, expected: TokenKind) -> bool {
+    fn has_token(
+        &self, iter:
+        &mut std::iter::Peekable<std::slice::Iter<Token>>,
+        expected: TokenKind
+    ) -> bool {
         match iter.peek() {
             Some(token) => {
                 if (*token).kind == expected {
@@ -89,6 +113,25 @@ impl SimpleParser {
                     true
                 } else {
                     false
+                }
+            }
+            None => false
+        }
+    }
+
+    fn has_keyword(
+        &self, iter:
+        &mut std::iter::Peekable<std::slice::Iter<Token>>,
+        expected: KeywordKind
+    ) -> bool {
+        match iter.peek() {
+            Some(token) => {
+                if let Keyword(keyword_kind) = &token.kind {
+                    expected == *keyword_kind
+
+                } else {
+                    false
+
                 }
             }
             None => false
@@ -157,16 +200,57 @@ impl SimpleParser {
 
     }
 
-    fn parse_brace_open(&self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> MorphResult<()> {
-        self.expect_kind(iter, BraceOpen)
+    fn parse_brace_open(
+        &self, iter:
+        &mut std::iter::Peekable<std::slice::Iter<Token>>
+    ) -> MorphResult<()> {
+        self.expect_kind(iter, TokenKind::BraceOpen)
     }
 
-    fn parse_brace_close(&self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> MorphResult<()> {
+    fn parse_brace_close(
+        &self, iter:
+        &mut std::iter::Peekable<std::slice::Iter<Token>>
+    ) -> MorphResult<()> {
         self.expect_kind(iter, BraceClose)
     }
 
+    fn parse_keyword(
+        &self, iter:
+        &mut std::iter::Peekable<std::slice::Iter<Token>>,
+        expected: KeywordKind
+    ) -> MorphResult<()> {
+
+        self.expect(iter, |token| {
+            match &token.kind {
+                Keyword(keyword_kind) => {
+                    if keyword_kind.clone() == expected {
+
+                        Success(())
+
+                    } else {
+                        let err = ParserError {
+                            message: format!("Expected keyword '{}', but got another keyword '{}", expected, keyword_kind),
+                            token: Some(token.clone())
+                        };
+
+                        Errors(vec![Box::new(err)])
+                    }
+                }
+                _ => {
+                    let err = ParserError {
+                        message: format!("Expected keyword '{}', but got '{}", expected, token.kind),
+                        token: Some(token.clone())
+                    };
+
+                    Errors(vec![Box::new(err)])
+                }
+            }
+        })
+
+    }
+
     fn parse_packet_id_keyword(&self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> MorphResult<()> {
-        self.expect_kind(iter, PacketIdentifier)
+        self.parse_keyword(iter, Identifier)
     }
 
     fn parse_operator(
@@ -198,6 +282,10 @@ impl SimpleParser {
 
     }
 
+    fn parse_auto_keyword(&self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> MorphResult<()> {
+        self.parse_keyword(iter, KeywordKind::Auto)
+    }
+
     fn parse_i32_number(
         &self,
         iter: &mut std::iter::Peekable<std::slice::Iter<Token>>
@@ -226,24 +314,33 @@ impl SimpleParser {
         while let Some(token) = iter.peek() {
 
             match &token.kind {
-                FieldTypeKeyword(field_type) => {
 
-                    iter.next();
-                    match self.parse_simple_field(iter, &field_type) {
-                        Success(field) => fields.push(field),
-                        Errors(errors) => { all_errors.extend(errors) }
+                Keyword(keyword_kind) => {
+
+                    match &keyword_kind {
+
+                        KeywordKind::FieldDefinition(field_type) => {
+                            iter.next();
+                            match self.parse_simple_field(iter, &field_type) {
+                                Success(field) => fields.push(field),
+                                Errors(errors) => { all_errors.extend(errors) }
+                            }
+                        }
+
+                        KeywordKind::Array => {
+                            iter.next();
+                            match self.parse_array_field(iter) {
+                                Success(field) => fields.push(field),
+                                Errors(errors) => { all_errors.extend(errors) }
+                            }
+                        }
+
+                        _ => {}
+
                     }
 
                 }
-                ArrayKeyword => {
 
-                    iter.next();
-                    match self.parse_array_field(iter) {
-                        Success(field) => fields.push(field),
-                        Errors(errors) => { all_errors.extend(errors) }
-                    }
-
-                }
                 Qualifier(packet_name) => {
 
                     iter.next();
@@ -312,12 +409,31 @@ impl SimpleParser {
         iter: &mut std::iter::Peekable<std::slice::Iter<Token>>
     ) -> MorphResult<Field> {
 
-        let array_type: FieldType = match self.expect(iter, |token| {
+        let array_type = match self.expect(iter, |token| {
 
             match &token.kind {
-                FieldTypeKeyword(field_type) => {
-                    Success(field_type.clone())
+                Keyword(keyword_kind) => {
+                    match keyword_kind {
+                        KeywordKind::FieldDefinition(field_type) => {
+                            Success(Array(Box::new(field_type.clone())))
+                        }
+                        KeywordKind::Array => {
+                            let err = ParserError {
+                                message: "Nested arrays are not allowed".to_string(),
+                                token: Some(token.clone())
+                            };
+                            Errors(vec![Box::new(err)])
+                        }
+                        _ => {
+                            let err = ParserError {
+                                message: format!("Expected field type or array keyword field type, but got '{}'", token.kind),
+                                token: Some(token.clone())
+                            };
+                            Errors(vec![Box::new(err)])
+                        }
+                    }
                 }
+
                 Qualifier(packet_name) => {
                     Success(Nested(packet_name.clone()))
 
@@ -355,15 +471,31 @@ impl AstParser for SimpleParser {
 
         while let Some(token) = iter.peek() {
             match &token.kind {
-                TokenKind::PacketKeyword => {
-                    match self.parse_packet(&mut iter) {
-                        Success(packet) => packets.push(packet),
-                        Errors(errors) => all_errors.extend(errors)
+                Keyword(keyword_kind) => {
+                    match keyword_kind {
+
+                        KeywordKind::Packet => {
+                            match self.parse_packet(&mut iter) {
+                                Success(packet) => packets.push(packet),
+                                Errors(errors) => all_errors.extend(errors)
+                            }
+                        }
+
+                        _ => {
+                            let err = ParserError {
+                                message: format!("Expected keyword 'packet', but got keyword '{}'", &token.kind),
+                                token: Some((*token).clone())
+                            };
+                            all_errors.push(Box::new(err));
+                            iter.next();
+                        }
+
                     }
+
                 },
                 _ => {
                     let err = ParserError {
-                        message: format!("Expected 'packet', but got '{}'", &token.kind),
+                        message: format!("Expected keyword 'packet', but got '{}'", &token.kind),
                         token: Some((*token).clone())
                     };
                     all_errors.push(Box::new(err));
