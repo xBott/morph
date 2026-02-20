@@ -17,6 +17,7 @@ packet PlayerData {
         string lang
         u64 last_online
         Position position
+        bool dead
     }
 }
 
@@ -40,5 +41,12 @@ packet Particles {
     id = auto
     fields {
         array Particle particles
+    }
+}
+
+packet Matrix2DPacket {
+    id = auto
+    fields {
+        array array i32 data
     }
 }
