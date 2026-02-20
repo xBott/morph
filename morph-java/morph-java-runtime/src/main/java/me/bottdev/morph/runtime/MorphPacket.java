@@ -1,9 +1,11 @@
 package me.bottdev.morph.runtime;
 
+import java.io.ByteArrayOutputStream;
+
 public interface MorphPacket {
 
-    int getPacketId();
+    byte getPacketId();
 
-    byte[] encode();
+    void encode(ByteArrayOutputStream out, boolean encodeId);
 
 }
