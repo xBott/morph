@@ -10,8 +10,8 @@ pub enum MorphResult<T> {
     Errors(Vec<Box<dyn MorphError>>),
 }
 
-pub fn print_morph_errors(errors: &Vec<Box<dyn MorphError>>) {
+pub fn print_morph_errors(errors: &Vec<Box<dyn MorphError>>, indent: &str) {
     for err in errors {
-        println!("{}", err.message());
+        eprintln!("{}-> {}", indent, err.message());
     }
 }
