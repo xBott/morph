@@ -1,8 +1,12 @@
 [package]
-name = "morphc"
+name = "morph"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.58", features = ["derive"] }
 sha2 = { version = "0.11.0-rc.5" }
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.0.2+spec-1.1.0"
+anyhow = "1.0.101"
+walkdir = "2.5.0"
