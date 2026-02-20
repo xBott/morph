@@ -1,0 +1,7 @@
+[java]
+output_dir              = "/Users/romanplakhotniuk/projects/morph/morph-java/morph-java-runtime/src/test/java/packets"
+package                 = "packets"
+no_args_constructor     = true
+generate_to_string      = true
+generate_equals         = true
+generate_hashcode       = true
