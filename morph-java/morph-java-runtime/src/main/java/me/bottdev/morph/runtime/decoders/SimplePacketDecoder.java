@@ -1,11 +1,13 @@
 package me.bottdev.morph.runtime.decoders;
 
+import me.bottdev.morph.runtime.BinaryReader;
 import me.bottdev.morph.runtime.MorphPacket;
 import me.bottdev.morph.runtime.PacketDecoder;
 import me.bottdev.morph.runtime.PacketRegistry;
 import me.bottdev.morph.runtime.exceptions.MorphDecodingException;
 
-import java.nio.ByteBuffer;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 
 public class SimplePacketDecoder implements PacketDecoder {
@@ -16,45 +18,33 @@ public class SimplePacketDecoder implements PacketDecoder {
         this.registry = registry;
     }
 
-    private int extractPacketId(byte[] data) throws IllegalArgumentException {
+    @Override
+    public MorphPacket decodeStream(InputStream in) throws MorphDecodingException {
 
-        if (data == null || data.length < 4) {
-            throw new IllegalArgumentException("Data too short to contain packet id");
+        if (in == null) {
+            throw new MorphDecodingException("Data too short to contain packet id");
         }
 
-        ByteBuffer buffer = ByteBuffer.wrap(data);
-        return buffer.getInt();
+        byte id;
+        try {
+            id = BinaryReader.readByte(in);
 
-    }
-
-    @Override
-    public MorphPacket decode(byte[] data) throws MorphDecodingException {
+        } catch (IOException ex) {
+            throw new MorphDecodingException("Could not extract packet id", ex);
+        }
 
         try {
-
-            int id = extractPacketId(data);
 
             Optional<PacketRegistry.Decoder> decoderOptional = registry.find(id);
             if (decoderOptional.isEmpty()) return null;
 
             PacketRegistry.Decoder decoder = decoderOptional.get();
-            return decoder.decode(data);
+            return decoder.decode(in);
 
-        } catch (IllegalArgumentException ex) {
+        } catch (IOException ex) {
             throw new MorphDecodingException("Could not decode data", ex);
         }
 
-    }
-
-    @Override
-    public Optional<MorphPacket> decodeSafe(byte[] data) {
-        try {
-            MorphPacket packet = decode(data);
-            return Optional.of(packet);
-
-        } catch (MorphDecodingException ex) {
-            return Optional.empty();
-        }
     }
 
 }
