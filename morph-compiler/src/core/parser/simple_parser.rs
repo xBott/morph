@@ -1,8 +1,8 @@
-use crate::core::{AstParser, Field, FieldType, OperatorKind, Packet, ParserError, Token, TokenKind};
-use crate::core::FieldType::{Array, Nested};
 use crate::core::token::KeywordKind;
 use crate::core::token::KeywordKind::{Fields, Identifier};
-use crate::core::TokenKind::{Keyword, Qualifier, BraceClose};
+use crate::core::FieldType::{Array, Nested};
+use crate::core::TokenKind::{BraceClose, Keyword, Qualifier};
+use crate::core::{AstParser, Field, FieldType, OperatorKind, Packet, ParserError, Token, TokenKind};
 use crate::utils::MorphResult::{Errors, Success};
 use crate::utils::{MorphError, MorphResult};
 
@@ -43,7 +43,7 @@ impl SimpleParser {
             Errors(errors) => all_errors.extend(errors),
             _ => {}
         }
-        
+
         if self.has_keyword(iter, KeywordKind::Auto) {
             id = -1;
             is_auto = true;
@@ -148,6 +148,24 @@ impl SimpleParser {
     {
         match iter.next() {
             Some(token) => { f(token) }
+            None => {
+                let err = ParserError {
+                    message: "Unexpected end of tokens".to_string(),
+                    token: None
+                };
+                Errors(vec![Box::new(err)])
+            }
+        }
+    }
+
+    fn expect_token(
+        &self,
+        iter: &mut std::iter::Peekable<std::slice::Iter<Token>>,
+    ) -> MorphResult<Token>  {
+        match iter.next() {
+            Some(token) => {
+                Success(token.clone())
+            }
             None => {
                 let err = ParserError {
                     message: "Unexpected end of tokens".to_string(),
@@ -315,52 +333,14 @@ impl SimpleParser {
 
             match &token.kind {
 
-                Keyword(keyword_kind) => {
-
-                    match &keyword_kind {
-
-                        KeywordKind::FieldDefinition(field_type) => {
-                            iter.next();
-                            match self.parse_simple_field(iter, &field_type) {
-                                Success(field) => fields.push(field),
-                                Errors(errors) => { all_errors.extend(errors) }
-                            }
-                        }
-
-                        KeywordKind::Array => {
-                            iter.next();
-                            match self.parse_array_field(iter) {
-                                Success(field) => fields.push(field),
-                                Errors(errors) => { all_errors.extend(errors) }
-                            }
-                        }
-
-                        _ => {}
-
-                    }
-
-                }
-
-                Qualifier(packet_name) => {
-
-                    iter.next();
-                    let field_type = Nested(packet_name.clone());
-                    match self.parse_simple_field(iter, &field_type) {
-                        Success(field) => fields.push(field),
-                        Errors(errors) => { all_errors.extend(errors) }
-                    }
-
-                }
                 BraceClose => {
                     break;
                 }
                 _ => {
-                    let err = ParserError {
-                        message: format!("Expected field type or array keyword, but got '{}'", token.kind),
-                        token: Some((*token).clone())
-                    };
-                    all_errors.push(Box::new(err));
-                    break;
+                    match self.parse_field(iter) {
+                        Success(field) => fields.push(field),
+                        Errors(errors) => all_errors.extend(errors),
+                    }
                 }
             }
 
@@ -375,87 +355,74 @@ impl SimpleParser {
         }
     }
 
-    fn parse_simple_field(
-        &self,
-        iter: &mut std::iter::Peekable<std::slice::Iter<Token>>,
-        field_type: &FieldType
-    ) -> MorphResult<Field> {
-
-        self.expect(iter, |token| {
-
-            match &token.kind {
-                Qualifier(name) => {
-                    let field = Field {
-                        typ: field_type.clone(),
-                        name: name.clone()
-                    };
-                    Success(field)
-                }
-                _ => {
-                    let err = ParserError {
-                        message: format!("Expected field name, but got '{}'", token.kind),
-                        token: Some(token.clone())
-                    };
-                    Errors(vec![Box::new(err)])
-                }
-            }
-
-        })
-
-    }
-
-    fn parse_array_field(
+    fn parse_field(
         &self,
         iter: &mut std::iter::Peekable<std::slice::Iter<Token>>
     ) -> MorphResult<Field> {
 
-        let array_type = match self.expect(iter, |token| {
-
-            match &token.kind {
-                Keyword(keyword_kind) => {
-                    match keyword_kind {
-                        KeywordKind::FieldDefinition(field_type) => {
-                            Success(Array(Box::new(field_type.clone())))
-                        }
-                        KeywordKind::Array => {
-                            let err = ParserError {
-                                message: "Nested arrays are not allowed".to_string(),
-                                token: Some(token.clone())
-                            };
-                            Errors(vec![Box::new(err)])
-                        }
-                        _ => {
-                            let err = ParserError {
-                                message: format!("Expected field type or array keyword field type, but got '{}'", token.kind),
-                                token: Some(token.clone())
-                            };
-                            Errors(vec![Box::new(err)])
-                        }
-                    }
-                }
-
-                Qualifier(packet_name) => {
-                    Success(Nested(packet_name.clone()))
-
-                }
-                _ => {
-                    let err = ParserError {
-                        message: format!("Expected array field type, but got '{}'", token.kind),
-                        token: Some(token.clone())
-                    };
-                    Errors(vec![Box::new(err)])
-                }
-            }
-
-        }) {
-            Success(field_type) => Array(Box::new(field_type.clone())),
-            Errors(errors) => {
-                return Errors(errors);
-            }
+        let field_type = match self.parse_type(iter) {
+            Success(typ) => typ,
+            Errors(errors) => return Errors(errors)
         };
 
-        self.parse_simple_field(iter, &array_type)
+        let token = match self.expect_token(iter) {
+            Success(token) => token,
+            Errors(errors) => return Errors(errors)
+        };
 
+        match &token.kind {
+            Qualifier(name) => {
+                Success(Field {
+                    name: name.clone(),
+                    typ: field_type,
+                })
+            }
+            _ => {
+                let err = ParserError {
+                    message: format!("Expected field name, but got '{}'", token.kind),
+                    token: Some(token.clone())
+                };
+                Errors(vec![Box::new(err)])
+            }
+        }
+    }
+
+    fn parse_type(
+        &self,
+        iter: &mut std::iter::Peekable<std::slice::Iter<Token>>
+    ) -> MorphResult<FieldType> {
+
+        let token = match self.expect_token(iter) {
+            Success(token) => token,
+            Errors(errors) => return Errors(errors)
+        };
+
+        match &token.kind {
+            Keyword(KeywordKind::Array) => {
+
+                match self.parse_type(iter) {
+                    Success(inner_type) => Success(Array(Box::new(inner_type))),
+                    Errors(errors) => Errors(errors)
+                }
+
+            }
+
+            Keyword(KeywordKind::FieldDefinition(field_type)) => {
+                Success(field_type.clone())
+            }
+
+            Qualifier(name) => {
+                Success(Nested(name.clone()))
+            }
+
+            _ => {
+                let err = ParserError {
+                    message: format!("Expected field type, but got '{}'", token.kind),
+                    token: Some(token.clone())
+                };
+                Errors(vec![Box::new(err)])
+            },
+        }
     }
 
 }
