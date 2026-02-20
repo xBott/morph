@@ -10,8 +10,6 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
     strategy:
       matrix:
         include:
@@ -22,6 +20,7 @@ jobs:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
 
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repo
@@ -34,12 +33,12 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Build Rust compiler (release)
+      - name: Build Rust compiler
         run: |
           cd morph-compiler
           cargo build --release --target ${{ matrix.target }}
 
-      - name: Build Java runtime (optional)
+      - name: Build Java runtime
         run: |
           cd morph-java
           ./gradlew build
@@ -49,5 +48,5 @@ jobs:
         with:
           name: morph-artifacts-${{ matrix.target }}
           path: |
-            morph-compiler/target/release/morph
+            morph-compiler/target/${{ matrix.target }}/release/morph*
             morph-java/morph-java-runtime/build/libs/*.jar
