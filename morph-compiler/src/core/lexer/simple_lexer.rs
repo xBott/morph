@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fs::File;
 use std::io::{BufRead, BufReader};
 use crate::core::Lexer;
 use crate::core::Token;
@@ -102,7 +102,18 @@ impl Lexer for SimpleLexer {
         let mut tokens: Vec<Token> = Vec::new();
         let mut all_errors: Vec<Box<dyn MorphError>> = Vec::new();
 
-        let reader = BufReader::new(&wrapper.file);
+        let file = match File::open(&wrapper.path) {
+            Ok(file) => file,
+            Err(err) => {
+                let morph_error = ReadError {
+                    message: format!("Failed to open file {}: {}", &wrapper.path.to_string_lossy(), err)
+                };
+                all_errors.push(Box::new(morph_error));
+                return Errors(all_errors);
+            }
+        };
+
+        let reader = BufReader::new(file);
 
         for (line_number, result) in reader.lines().enumerate() {
             match result {
