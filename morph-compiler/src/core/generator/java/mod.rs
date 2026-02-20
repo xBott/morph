@@ -1,4 +1,3 @@
-mod java;
-pub mod generator;
+pub mod java_generator;
 
-pub use java::JavaGenerator;
+pub use java_generator::*;
