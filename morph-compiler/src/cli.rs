@@ -1,23 +1,40 @@
-use clap::{Parser, ValueEnum};
+use std::fmt::Display;
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "morph")]
-#[command(about = "Morph compiler")]
+#[command(about = "Morph CLI")]
 pub struct Cli {
-    #[arg(value_enum)]
-    pub lang: Lang,
-
-    #[arg(short = 'i', long)]
-    pub input_dir: PathBuf,
-    #[arg(short = 'o', long, default_value = "/generated")]
-    pub output_dir: PathBuf,
-
-    #[arg(short = 'p', long, default_value = "generated")]
-    pub package: String,
+    #[command(subcommand)]
+    pub command: Commands,
 }
+
+#[derive(Subcommand)]
+pub enum Commands {
+    Init {
+        #[arg(short = 'i', long)]
+        input_dir: Option<PathBuf>,
+
+    },
+
+    Build {
+        #[arg(value_enum)]
+        lang: Lang,
+
+        #[arg(short = 'i', long)]
+        input_dir: Option<PathBuf>,
+    },
+}
+
 
 #[derive(ValueEnum, Clone, Debug)]
 pub enum Lang {
-    Java
+    Java,
+}
+
+impl Display for Lang {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        write!(formatter, "{:?}", self)
+    }
 }
