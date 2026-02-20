@@ -1,5 +1,7 @@
 package me.bottdev.morph.runtime;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Optional;
 
@@ -7,16 +9,16 @@ public class PacketRegistry {
 
     @FunctionalInterface
     public interface Decoder {
-        MorphPacket decode(byte[] bytes);
+        MorphPacket decode(InputStream in) throws IOException;
     }
 
-    private final HashMap<Integer, Decoder> decoders = new HashMap<>();
+    private final HashMap<Byte, Decoder> decoders = new HashMap<>();
 
-    public void register(int id, Decoder decoder) {
+    public void register(byte id, Decoder decoder) {
         decoders.put(id, decoder);
     }
 
-    public Decoder unregister(int id) {
+    public Decoder unregister(byte id) {
         return decoders.remove(id);
     }
 
@@ -24,7 +26,7 @@ public class PacketRegistry {
         decoders.clear();
     }
 
-    public Optional<Decoder> find(int id) {
+    public Optional<Decoder> find(byte id) {
         return Optional.ofNullable(decoders.get(id));
     }
 
